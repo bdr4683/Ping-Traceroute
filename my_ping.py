@@ -8,6 +8,8 @@ import struct
 import time
 import argparse
 
+SEQ = 1
+
 def checksum(source):
     """
     Basic checksum function from online reference
@@ -47,7 +49,7 @@ def resolveHostname(destination):
         raise ValueError(f"Could not resolve: {destination}")
     
 
-def createPacket(payloadSize):
+def createPacket(payloadSize, seq):
     """
     Creates and returns an ICMP ping packet
 
@@ -58,8 +60,8 @@ def createPacket(payloadSize):
     icmpType = 8
     icmpCode = 0
     icmpId = 0
-    icmpSeq = 1
     icmpChecksum = 0
+    icmpSeq = seq
 
     data = b'a' * payloadSize
 
@@ -72,7 +74,7 @@ def createPacket(payloadSize):
 
     return icmpHeader + data
 
-def ping(address, packetSize, timeout):
+def ping(address, packetSize, timeout, seq):
     """
     Pings the provided address with a packet of the specified size, or timeout for the ping request
 
@@ -88,7 +90,7 @@ def ping(address, packetSize, timeout):
         print("Error, root privilages not found")
         return
 
-    packet = createPacket(packetSize)
+    packet = createPacket(packetSize, seq)
 
     mySocket.sendto(packet, (address, 1))
     if(timeout > 0):
@@ -96,17 +98,19 @@ def ping(address, packetSize, timeout):
     start = time.time()
     
     try:
-        packetRecieved, recieveAddress = mySocket.recvfrom(1024)
-        end = time.time()
-        delay = end-start
-    except socket.timeout:
-        print("Ping request timed out.")
-    
-    mySocket.close()
+        packetReceived, receiveAddress = mySocket.recvfrom(1024)
+        receiveAddress = receiveAddress[0]
+        end = time.time()   
+        delay = (end-start) * 1000
+    except socket.timeout:  
+        print("Ping request timed out.")    
+        return None, None, None
+        
+    mySocket.close()    
 
-    recvHeader = packetRecieved[20:28]
+    recvHeader = packetReceived[20:28]
 
-    return delay
+    return delay, receiveAddress, recvHeader
 
 
 def main():
@@ -127,10 +131,16 @@ def main():
         packetSize = args.packetsize
         wait = args.wait
         timeout = args.timeout
+        seq = 0
 
         while count > 0:
-            ping(address=destination, packetSize=packetSize, timeout=timeout)
+            delay, recvAddress, recvHeader = ping(address=destination, packetSize=packetSize, timeout=timeout, seq=seq)
+            if delay == None:
+                return
+            _, _, _, _, recvSeq = struct.unpack("!BBHHH", recvHeader)
+            print(f"{packetSize} bytes from {recvAddress}, delay: {delay:.1f}ms")
             count -= 1
+            seq += 1
             if count > 0:
                 time.sleep(wait)
     except KeyboardInterrupt:
