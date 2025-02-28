@@ -16,20 +16,21 @@ def checksum(source):
     :return: the checksum of the packet
     """
 
-    checksum = 0
-    for i in range(0, len(source), 2):
-        checksum += (source[i] << 8) + (
-            struct.unpack('B', source[i + 1:i + 2])[0]
-            if len(source[i + 1:i + 2]) else 0
-        )
+    s = 0
+    for i in range(0, len(source) - (len(source) % 2), 2):
+        s += (source[i] << 8) + source[i + 1]
+    if len(source) % 2:
+        s += source[-1] << 8  # Pad last byte with 0x00
+    s = (s >> 16) + (s & 0xFFFF)
+    s = ~s & 0xFFFF
+    return s
 
-    checksum = (checksum >> 16) + (checksum & 0xFFFF)
-    checksum = ~checksum & 0xFFFF
-    return checksum
-
-def resolve_hostname(destination):
+def resolveHostname(destination):
     """
     Resolve a hostname or IP address to an IPv4 address.
+
+    :param string destination: Target destination
+    :return: IPv4 address of the destination
     """
     try:
         addr_info = socket.getaddrinfo(
@@ -119,15 +120,16 @@ def main():
     args = parser.parse_args()
 
     try:
+        destination = resolveHostname(args.destination)
         count = float('inf')
         if args.count:
             count = args.count
-        packet_size = args.packetsize
+        packetSize = args.packetsize
         wait = args.wait
         timeout = args.timeout
 
         while count > 0:
-            ping(args.destination, timeout, packet_size)
+            ping(address=destination, packetSize=packetSize, timeout=timeout)
             count -= 1
             if count > 0:
                 time.sleep(wait)
