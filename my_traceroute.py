@@ -152,6 +152,8 @@ def main():
         traceroute(args.destination)
     except PermissionError:
         print("Error: Root privileges required for raw sockets.")
+    except KeyboardInterrupt:
+        print("Program terminated by keyboard interrupt")
 
 if __name__ == "__main__":
     main()
